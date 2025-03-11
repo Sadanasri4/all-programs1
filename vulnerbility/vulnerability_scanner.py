@@ -1,0 +1,83 @@
+import nmap
+import requests
+
+class VulnerabilityScanner:
+    def __init__(self, target):
+        self.target = target
+        try:
+            self.scanner = nmap.PortScanner()
+            print("Initialized nmap scanner successfully.")
+        except nmap.PortScannerError as e:
+            print(f"Error initializing nmap scanner: {e}")
+            self.scanner = None
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            self.scanner = None
+
+    def scan_network(self):
+        if not self.scanner:
+            print("Nmap scanner not initialized.")
+            return []
+
+        print(f"Scanning network {self.target}...")
+        try:
+            self.scanner.scan(hosts=self.target, arguments='-sP')
+            hosts_list = [(x, self.scanner[x]['status']['state']) for x in self.scanner.all_hosts()]
+            print(f"Hosts list: {hosts_list}")
+            for host, status in hosts_list:
+                print(f'Host : {host} ({status})')
+            return hosts_list
+        except Exception as e:
+            print(f"Error scanning network: {e}")
+            return []
+
+    def scan_ports(self, host):
+        if not self.scanner:
+            print("Nmap scanner not initialized.")
+            return []
+
+        print(f"Scanning ports on {host}...")
+        try:
+            self.scanner.scan(host, '1-1024')
+            open_ports = [port for port in self.scanner[host]['tcp'] if self.scanner[host]['tcp'][port]['state'] == 'open']
+            for port in open_ports:
+                print(f"Port {port} is open on {host}")
+            return open_ports
+        except Exception as e:
+            print(f"Error scanning ports on {host}: {e}")
+            return []
+
+    def check_software_version(self, url):
+        print(f"Checking software version for {url}...")
+        try:
+            response = requests.get(url)
+            server = response.headers.get('Server', 'Unknown')
+            print(f"Server: {server}")
+            return server
+        except requests.RequestException as e:
+            print(f"Error checking software version: {e}")
+            return None
+
+    def run(self):
+        hosts = self.scan_network()
+        print(f"Hosts found: {hosts}")
+        for host, status in hosts:
+            if status == 'up':
+                print(f"Scanning host: {host}")
+                open_ports = self.scan_ports(host)
+                print(f"Open ports on {host}: {open_ports}")
+                if 80 in open_ports or 443 in open_ports:
+                    url = f"http://{host}"
+                    if 443 in open_ports:
+                        url = f"https://{host}"
+                    self.check_software_version(url)
+
+if __name__ == "__main__":
+    try:
+        target = input("Enter the target IP address or range (e.g., 192.168.1.0/24): ")
+        print(f"Target: {target}")
+        scanner = VulnerabilityScanner(target)
+        scanner.run()
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+
